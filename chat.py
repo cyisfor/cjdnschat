@@ -22,16 +22,11 @@ def waiting(*a,**kw):
         if p: p.wait()
 
 with waiting(["ip","addr"],stdout=s.PIPE) as p:
-    foundTun = False
     for line in io.TextIOWrapper(p.stdout):
-        if foundTun is False:
-            if "tun0" in line:
-                foundTun = True
-        else:
-            if numcolon.search(line): break
-            result = cjaddr.search(line)
-            if result:
-                address = result.group(1)
+        result = cjaddr.search(line)
+        if result:
+            address = result.group(1)
+            break
 if address is None:
     print("Could not find your cjdns address!")
     raise SystemExit(3)
