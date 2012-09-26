@@ -13,11 +13,15 @@ class Protocol(asyncore.dispatcher):
         self.ibuffer = {}
         self.obuffer = {}
         self.ports = {}
+        self.friends = set()
         asyncore.dispatcher.__init__(self)
         self.create_socket(socket.AF_INET6,socket.SOCK_DGRAM)
         self.bind((addr,port))
     def handle_read(self):
         data, addr = self.recvfrom(0x1000)
+        if not addr[0] in self.friends:
+            print("> ignoring {} from {}".format(len(data),addr[0]))
+            return
         self.ports[addr[0]] = addr[1]
         addr = addr[0]
         buf = self.ibuffer.get(addr,"")
@@ -25,7 +29,7 @@ class Protocol(asyncore.dispatcher):
         lines = buf.split("\n")
         buf = lines[-1]
         lines = lines[:-1]
-        self.buffers[addr] = buf
+        self.ibuffer[addr] = buf
         for line in lines:
             self.handle_line(addr,line)
     def found_terminator(self):
@@ -33,7 +37,7 @@ class Protocol(asyncore.dispatcher):
     def handle_write(self):
         for addr in list(self.obuffer.keys()):
             buf = self.obuffer[addr]
-            sent = self.sendto(self.buffer, (addr,self.ports.get(addr,20000)))
+            sent = self.sendto(buf, (addr,self.ports.get(addr,20000)))
             if sent < 0:
                 break
             else:
@@ -43,7 +47,7 @@ class Protocol(asyncore.dispatcher):
                 else:
                     del self.obuffer[addr]
     def queue_send(self,addr,data):
-        buf = self.obuffer.get(addr,"")
+        buf = self.obuffer.get(addr,b"")
         buf += data
         self.obuffer[addr] = buf
     def handle_line(self,who,line):
@@ -54,8 +58,8 @@ class ConsoleHandler(asyncore.file_dispatcher):
     def __init__(self,protocol):
         self.protocol = protocol
         self.buffer = b""
-        self.friends = {}
         asyncore.file_dispatcher.__init__(self,sys.stdin)
+        commands.init(self)
     def handle_read(self):
         self.buffer += self.recv(0x1000)
         lines = self.buffer.decode('utf-8').split("\n")
@@ -72,12 +76,13 @@ class ConsoleHandler(asyncore.file_dispatcher):
                 args = ()
             commands.run(command,self,args)
         else:
-            for addr in self.friends:
-                self.protocol.queue_send(addr,line)
+            for addr in self.protocol.friends:
+                self.protocol.queue_send(addr,line.encode('utf-8'))
     def close(self):
         raise SystemExit
 
 def trySetup(addr,port):
     proto = Protocol(addr,port)
     stdin = ConsoleHandler(proto)
+    print("Tell your friends /add {}:{}".format(addr,port))
     asyncore.loop()
