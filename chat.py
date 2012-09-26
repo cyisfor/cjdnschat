@@ -1,9 +1,9 @@
+import net
+
 import subprocess as s
 import re
 import io
 from contextlib import contextmanager
-
-import net
 
 numcolon = re.compile("^[0-9]+:")
 cjaddr = re.compile("inet6 (fc[0-9a-f]{0,2}:(?:[0-9a-f]{0,4}:){6}[0-9a-f]{0,4})/8 scope global")
