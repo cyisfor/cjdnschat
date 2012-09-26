@@ -50,9 +50,9 @@ class Protocol(asyncore.dispatcher):
                     self.obuffer[addr] =  buf[sent:]
                 else:
                     del self.obuffer[addr]
-    def queue_send(self,addr,data):
+    def queue_send(self,addr,message):
         buf = self.obuffer.get(addr,b"")
-        buf += data
+        buf += message + b"\0"
         self.obuffer[addr] = buf
     def handle_message(self,who,message):
         self.lastAddr = who
