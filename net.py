@@ -1,4 +1,4 @@
-import commands
+import commands,time
 
 import asyncore,socket,sys
 import re
@@ -26,6 +26,7 @@ class Protocol(asyncore.dispatcher):
         addr = addr[0]
         buf = self.ibuffer.get(addr,"")
         buf += data.decode('utf-8')
+        print("got {}".format(repr(buf)))
         lines = buf.split("\n")
         buf = lines[-1]
         lines = lines[:-1]
@@ -35,6 +36,9 @@ class Protocol(asyncore.dispatcher):
     def found_terminator(self):
         line = "".join(self.ibuffer)
     def handle_write(self):
+        if len(self.obuffer)==0:
+            time.sleep(1)
+            return
         for addr in list(self.obuffer.keys()):
             buf = self.obuffer[addr]
             sent = self.sendto(buf, (addr,self.ports.get(addr,20000)))
@@ -61,6 +65,7 @@ class ConsoleHandler(asyncore.file_dispatcher):
         asyncore.file_dispatcher.__init__(self,sys.stdin)
         commands.init(self)
     def handle_read(self):
+        print("cr")
         self.buffer += self.recv(0x1000)
         lines = self.buffer.decode('utf-8').split("\n")
         buf = lines[-1]
@@ -77,7 +82,7 @@ class ConsoleHandler(asyncore.file_dispatcher):
             commands.run(command,self,args)
         else:
             for addr in self.protocol.friends:
-                self.protocol.queue_send(addr,line.encode('utf-8'))
+                self.protocol.queue_send(addr,(line+"\n").encode('utf-8'))
     def close(self):
         raise SystemExit
 
