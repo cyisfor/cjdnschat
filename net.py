@@ -24,15 +24,15 @@ class Protocol(asyncore.dispatcher):
             return
         self.ports[addr[0]] = addr[1]
         addr = addr[0]
-        buf = self.ibuffer.get(addr,"")
-        buf += data.decode('utf-8')
+        buf = self.ibuffer.get(addr,b"")
+        buf += data
         print("got {}".format(repr(buf)))
-        lines = buf.split("\n")
-        buf = lines[-1]
-        lines = lines[:-1]
+        messages = buf.split(b"\0")
+        buf = messages[-1]
+        messages = messages[:-1]
         self.ibuffer[addr] = buf
-        for line in lines:
-            self.handle_line(addr,line)
+        for message in messages:
+            self.handle_message(addr,message)
     def found_terminator(self):
         line = "".join(self.ibuffer)
     def handle_write(self):
@@ -54,9 +54,9 @@ class Protocol(asyncore.dispatcher):
         buf = self.obuffer.get(addr,b"")
         buf += data
         self.obuffer[addr] = buf
-    def handle_line(self,who,line):
+    def handle_message(self,who,message):
         self.lastAddr = who
-        print("<"+maybeAlias(who)+"> "+line)
+        print("<"+maybeAlias(who)+"> "+message.decode('utf-8'))
 
 class ConsoleHandler(asyncore.file_dispatcher):
     def __init__(self,protocol):
@@ -65,7 +65,6 @@ class ConsoleHandler(asyncore.file_dispatcher):
         asyncore.file_dispatcher.__init__(self,sys.stdin)
         commands.init(self)
     def handle_read(self):
-        print("cr")
         self.buffer += self.recv(0x1000)
         lines = self.buffer.decode('utf-8').split("\n")
         buf = lines[-1]
@@ -82,7 +81,7 @@ class ConsoleHandler(asyncore.file_dispatcher):
             commands.run(command,self,args)
         else:
             for addr in self.protocol.friends:
-                self.protocol.queue_send(addr,(line+"\n").encode('utf-8'))
+                self.protocol.queue_send(addr,line.encode('utf-8'))
     def close(self):
         raise SystemExit
 
