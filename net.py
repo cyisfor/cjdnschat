@@ -21,7 +21,7 @@ class Protocol(asyncore.dispatcher):
         self.ports[addr[0]] = addr[1]
         addr = addr[0]
         buf = self.ibuffer.get(addr,"")
-        buf += data
+        buf += data.decode('utf-8')
         lines = buf.split("\n")
         buf = lines[-1]
         lines = lines[:-1]
@@ -53,15 +53,15 @@ class Protocol(asyncore.dispatcher):
 class ConsoleHandler(asyncore.file_dispatcher):
     def __init__(self,protocol):
         self.protocol = protocol
-        self.buffer = ""
+        self.buffer = b""
         self.friends = {}
         asyncore.file_dispatcher.__init__(self,sys.stdin)
     def handle_read(self):
         self.buffer += self.recv(0x1000)
-        lines = self.buffer.split("\n")
+        lines = self.buffer.decode('utf-8').split("\n")
         buf = lines[-1]
         lines = lines[:-1]
-        self.buffer = buf
+        self.buffer = buf.encode('utf-8')
         for line in lines:
             self.handle_line(line)
     def handle_line(self,line):

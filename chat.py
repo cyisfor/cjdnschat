@@ -1,5 +1,6 @@
 import subprocess as s
 import re
+import io
 from contextlib import contextmanager
 
 import net
@@ -20,7 +21,7 @@ def waiting(*a,**kw):
 
 with waiting(["ip","addr"],stdout=s.PIPE) as p:
     foundTun = False
-    for line in p.stdout:
+    for line in io.TextIOWrapper(p.stdout):
         if foundTun is False:
             if "tun0" in line:
                 foundTun = True
