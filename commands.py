@@ -2,7 +2,7 @@ import shelve,re
 commands = {}
 
 savedFriends = shelve.open('friends.shelve','c')
-portpat = re.compile("(.*):(.*)")
+portpat = re.compile("\[(.*)\]:(.*)")
 
 def addFriend(chat,args):
     result = portpat.match(args)
@@ -11,7 +11,10 @@ def addFriend(chat,args):
         port = result.group(2)
         savedFriends[friend] = port
         chat.protocol.friends.add(friend)
-        chat.protocol.ports[friend] = int(port)
+        if port:
+            chat.protocol.ports[friend] = int(port)
+        else:
+            chat.protocol.ports[friend] = 20000
 
 commands['add'] = addFriend
 

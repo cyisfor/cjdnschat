@@ -20,13 +20,12 @@ class Protocol(asyncore.dispatcher):
     def handle_read(self):
         data, addr = self.recvfrom(0x1000)
         if not addr[0] in self.friends:
-            print("> ignoring {} from {}".format(len(data),addr[0]))
+            print("> ignoring {} from [{}]:{}".format(len(data),addr[0],addr[1]))
             return
         self.ports[addr[0]] = addr[1]
         addr = addr[0]
         buf = self.ibuffer.get(addr,b"")
         buf += data
-        print("got {}".format(repr(buf)))
         messages = buf.split(b"\0")
         buf = messages[-1]
         messages = messages[:-1]
@@ -88,5 +87,5 @@ class ConsoleHandler(asyncore.file_dispatcher):
 def trySetup(addr,port):
     proto = Protocol(addr,port)
     stdin = ConsoleHandler(proto)
-    print("Tell your friends /add {}:{}".format(addr,port))
+    print("Tell your friends /add [{}]:{}".format(addr,port))
     asyncore.loop()
