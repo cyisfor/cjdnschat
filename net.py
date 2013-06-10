@@ -73,6 +73,9 @@ class ConsoleHandler(pyuv.TTY):
             self.signals[i].start(self.onSignal,sig)
         self.start_read(self.handle_read)
     def handle_read(self,flags,data,error):
+        if data is None:
+            self.close()
+            return
         self.buffer += data
         lines = self.buffer.decode('utf-8').split("\n")
         buf = lines[-1]
