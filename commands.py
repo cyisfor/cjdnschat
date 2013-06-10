@@ -15,9 +15,9 @@ def addFriend(chat,args):
     result = portpat.match(args)
     if result:
         friend = result.group(1)
-        port = result.group(2)
+        port = int(result.group(2))
         savedFriends[friend] = port
-        chat.protocol.friends.add(friend)
+        chat.protocol.friends.add((friend,port))
         if port:
             chat.protocol.ports[friend] = int(port)
         else:
@@ -28,8 +28,9 @@ commands['add'] = [addFriend,'<friend>']
 def delFriend(chat,args):
     "Remove a friend so they can't chat with you."
     friend = args
+    port = savedFriends[friend]
     del savedFriends[friend]
-    chat.protocol.friends.discard(friend)
+    chat.protocol.friends.discard((friend,port))
     del chat.protocol.ports[friend]
     print("OK")
 commands['ignore'] = [delFriend,"<friend>"]
@@ -40,8 +41,10 @@ def init(chat):
     global savedFriends
     with closing(shelve.open('friends.shelve','c')) as savedFriends:
         for friend,port in savedFriends.items():
-            chat.protocol.friends.add(friend)
-            chat.protocol.ports[friend] = int(port)
+            if type(port)==str:
+                port = int(port)
+            chat.protocol.friends.add((friend,port))
+            chat.protocol.ports[friend] = port
         yield savedFriends
 
 def listFriends(chat,args):

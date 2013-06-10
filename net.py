@@ -2,7 +2,7 @@ try:
     import pyuv
 except ImportError:
     print("PYUV not installed! We needs it for sane networking operations! Run [pip3 install pyuv] as root please.")
-    raise SystemExit
+    import derpyuv as pyuv
 
 import commands,time
 
@@ -17,16 +17,15 @@ def maybeAlias(who):
     return who
 
 class CompleteSender:
-    def __init__(self,addr,proto,message):
+    def __init__(self,proto,addr,message):
         self.message = message
         self.proto = proto
-        proto.send(addr,message,self.done)
+        proto.send(addr,message)
     def done(self,proto,status):
         if status != 0:
             logging.error("Sending failed! {}".format(status))
         else:
             logging.debug("Message has been sent")
-
 
 class Protocol(pyuv.UDP):
     def __init__(self,loop,addr,port):
@@ -53,11 +52,7 @@ class Protocol(pyuv.UDP):
     def found_terminator(self):
         line = "".join(self.ibuffer)
     def send(self,addr,message):
-        CompleteSender(self,addr,message)
-    def sendMoar(self,pyuv,error):
-        offset = 0
-        while offset < len(message):
-            offset += super().send((addr,self.ports.get(addr,20000)),buf[offset:])
+        CompleteSender(super(),addr,message)
     def handle_message(self,who,message):
         self.lastAddr = who
         print("<"+maybeAlias(who)+"> "+message.decode('utf-8'))
@@ -91,8 +86,13 @@ class ConsoleHandler(pyuv.TTY):
                 args = ()
             commands.run(command,self,args)
         else:
-            for addr in self.protocol.friends:
-                self.protocol.send(addr,line.encode('utf-8'))
+            if not self.protocol.friends:
+                print("You have no friends. :(")
+            else:
+                logging.debug("Sending to {} friends".format(len(self.protocol.friends)))
+                for addr in self.protocol.friends:
+                    print(repr(addr))
+                    self.protocol.send(addr,line.encode('utf-8'))
     def close(self):
         for sig in self.signals:
             sig.close()
