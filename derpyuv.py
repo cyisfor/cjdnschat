@@ -9,6 +9,8 @@ class UDP(socket.socket):
     def start_recv(self,handler):
         self.onRead = handler
         self.loop.reads.add(self)
+    def send(self,addr,buf):
+        super().sendto(buf,addr)
 
 class TTY:
     def __init__(self,loop,fileno,derp):
@@ -19,9 +21,11 @@ class TTY:
     def start_read(self,handler):
         self.onRead = handler
         self.loop.reads.add(self)
+
 class Loop:
     def __init__(self):
         self.reads = set()
+        self.buf = bytes(0x1000)
     @staticmethod
     def default_loop():
         return default_loop
@@ -32,7 +36,15 @@ class Loop:
             results = select.select(rfds,(),(),None)
             for fd in results[0]:
                 if fd in lookup:
-                    lookup[fd].onRead(lookup[fd],os.read(fd,0x100),None)
+                    sock = lookup[fd]
+                    try:
+                        num, addr = sock.recvfrom_into(self.buf,0x1000)
+                        sock.onRead(sock,addr,None,self.buf[:num],None)
+                    except AttributeError:
+                        buf = os.read(fd,0x1000)
+                        if len(buf)==0: raise SystemExit
+                        print(sock.onRead)
+                        sock.onRead(None,buf,None)
 
 
 class Signal:

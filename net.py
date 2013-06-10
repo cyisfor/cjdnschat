@@ -1,5 +1,5 @@
 try:
-    import pyuva
+    import pyuv
 except ImportError:
     print("PYUV not installed! We needs it for sane networking operations! Run [pip3 install pyuv] as root please.")
     import derpyuv as pyuv
@@ -91,7 +91,6 @@ class ConsoleHandler(pyuv.TTY):
             else:
                 logging.debug("Sending to {} friends".format(len(self.protocol.friends)))
                 for addr in self.protocol.friends:
-                    print(repr(addr))
                     self.protocol.send(addr,line.encode('utf-8'))
     def close(self):
         for sig in self.signals:

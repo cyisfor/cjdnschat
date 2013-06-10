@@ -11,7 +11,7 @@ shelve.open('friends.shelve','c')
 portpat = re.compile("\[(.*)\]:(.*)")
 
 def addFriend(chat,args):
-    "Add a friend so they can chat with you"
+    "Add a friend so they can chat with you. Both you and your friend have to add each other in order to chat."
     result = portpat.match(args)
     if result:
         friend = result.group(1)
