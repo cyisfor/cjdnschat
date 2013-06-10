@@ -35,7 +35,7 @@ class Protocol(pyuv.UDP):
         super().__init__(loop)
         self.bind((addr,port))
         self.start_recv(self.handle_read)
-    def handle_read(selfhandle,sockaddr,flags,data,error):
+    def handle_read(self,handle,sockaddr,flags,data,error):
         if not addr[0] in self.friends:
             logging.debug("ignoring {} from [{}]:{}".format(len(data),addr[0],addr[1]))
             return
