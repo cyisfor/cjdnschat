@@ -32,4 +32,5 @@ if address is None:
     raise SystemExit(3)
 
 for port in range(20000,30000):
-    net.trySetup(address,port)
+    try: net.trySetup(address,port)
+    except OSError: pass

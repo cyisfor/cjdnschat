@@ -1,5 +1,5 @@
 try:
-    import pyuv
+    import pyuva
 except ImportError:
     print("PYUV not installed! We needs it for sane networking operations! Run [pip3 install pyuv] as root please.")
     import derpyuv as pyuv
