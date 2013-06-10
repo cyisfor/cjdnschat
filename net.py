@@ -1,26 +1,44 @@
+try:
+    import pyuv
+except ImportError:
+    print("PYUV not installed! We needs it for sane networking operations! Run [pip3 install pyuv] as root please.")
+    raise SystemExit
+
 import commands,time
 
-import asyncore,socket,sys
+import socket,sys,logging,signal
 import re
+
+logging.basicConfig(level=logging.DEBUG)
 
 whitespace = re.compile("\\s+")
 
 def maybeAlias(who):
     return who
 
-class Protocol(asyncore.dispatcher):
-    def __init__(self,addr,port):
-        self.ibuffer = {}
-        self.obuffer = {}
+class CompleteSender:
+    def __init__(self,addr,proto,message):
+        self.message = message
+        self.proto = proto
+        proto.send(addr,message,self.done)
+    def done(self,proto,status):
+        if status != 0:
+            logging.error("Sending failed! {}".format(status))
+        else:
+            logging.debug("Message has been sent")
+
+
+class Protocol(pyuv.UDP):
+    def __init__(self,loop,addr,port):
         self.ports = {}
         self.friends = set()
-        asyncore.dispatcher.__init__(self)
-        self.create_socket(socket.AF_INET6,socket.SOCK_DGRAM)
+        self.ibuffer = {}
+        super().__init__(loop)
         self.bind((addr,port))
-    def handle_read(self):
-        data, addr = self.recvfrom(0x1000)
+        self.start_recv(self.handle_read)
+    def handle_read(selfhandle,sockaddr,flags,data,error):
         if not addr[0] in self.friends:
-            print("> ignoring {} from [{}]:{}".format(len(data),addr[0],addr[1]))
+            logging.debug("ignoring {} from [{}]:{}".format(len(data),addr[0],addr[1]))
             return
         self.ports[addr[0]] = addr[1]
         addr = addr[0]
@@ -34,37 +52,28 @@ class Protocol(asyncore.dispatcher):
             self.handle_message(addr,message)
     def found_terminator(self):
         line = "".join(self.ibuffer)
-    def handle_write(self):
-        if len(self.obuffer)==0:
-            time.sleep(1)
-            return
-        for addr in list(self.obuffer.keys()):
-            buf = self.obuffer[addr]
-            sent = self.sendto(buf, (addr,self.ports.get(addr,20000)))
-            if sent < 0:
-                break
-            else:
-                if sent == 0: break
-                if buf[sent:]:
-                    self.obuffer[addr] =  buf[sent:]
-                else:
-                    del self.obuffer[addr]
-    def queue_send(self,addr,message):
-        buf = self.obuffer.get(addr,b"")
-        buf += message + b"\0"
-        self.obuffer[addr] = buf
+    def send(self,addr,message):
+        CompleteSender(self,addr,message)
+    def sendMoar(self,pyuv,error):
+        offset = 0
+        while offset < len(message):
+            offset += super().send((addr,self.ports.get(addr,20000)),buf[offset:])
     def handle_message(self,who,message):
         self.lastAddr = who
         print("<"+maybeAlias(who)+"> "+message.decode('utf-8'))
 
-class ConsoleHandler(asyncore.file_dispatcher):
-    def __init__(self,protocol):
+class ConsoleHandler(pyuv.TTY):
+    def __init__(self,loop,protocol):
         self.protocol = protocol
         self.buffer = b""
-        asyncore.file_dispatcher.__init__(self,sys.stdin)
-        commands.init(self)
-    def handle_read(self):
-        self.buffer += self.recv(0x1000)
+        super().__init__(loop,sys.stdin.fileno(), True)
+        badsigs = [signal.SIGINT,signal.SIGHUP,signal.SIGQUIT]
+        self.signals = [pyuv.Signal(loop) for derp in badsigs]
+        for i,sig in enumerate(badsigs):
+            self.signals[i].start(self.onSignal,sig)
+        self.start_read(self.handle_read)
+    def handle_read(self,flags,data,error):
+        self.buffer += data
         lines = self.buffer.decode('utf-8').split("\n")
         buf = lines[-1]
         lines = lines[:-1]
@@ -80,12 +89,19 @@ class ConsoleHandler(asyncore.file_dispatcher):
             commands.run(command,self,args)
         else:
             for addr in self.protocol.friends:
-                self.protocol.queue_send(addr,line.encode('utf-8'))
+                self.protocol.send(addr,line.encode('utf-8'))
     def close(self):
+        for sig in self.signals:
+            sig.close()
+        super().close()
         raise SystemExit
+    def onSignal(self,handle,signum):
+        self.close()
 
 def trySetup(addr,port):
-    proto = Protocol(addr,port)
-    stdin = ConsoleHandler(proto)
+    loop = pyuv.Loop.default_loop()
+    proto = Protocol(loop,addr,port)
+    stdin = ConsoleHandler(loop,proto)
     print("Tell your friends /add [{}]:{}".format(addr,port))
-    asyncore.loop()
+    with commands.init(stdin):
+        loop.run()

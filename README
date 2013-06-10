@@ -7,14 +7,17 @@ There are 3 commands
 /list - list your friends
 /ignore - remove a friend
 
+also /help and /quit but those don't do anything special
+
 Note for debugging purposes non-friends sending you stuff will still pop up
 indicators.
 
 /ignore IP
 will remove IP from your friends list. Just copy and paste a line from /list or
-w/ev
+w/ev. IP:port will ignore the port part.
 
 /add IP:port
 IP is an IPv6 cjdns address
 port is an integer, doesn't matter just depends whatever their chat's listening on.
+
 /list - list your friends
