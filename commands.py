@@ -28,7 +28,8 @@ commands['add'] = [addFriend,'<friend>']
 def delFriend(chat,args):
     "Remove a friend so they can't chat with you."
     friend = args
-    port = savedFriends[friend]
+    port = savedFriends.get(friend)
+    if not port: return
     del savedFriends[friend]
     chat.protocol.friends.discard((friend,port))
     del chat.protocol.ports[friend]
