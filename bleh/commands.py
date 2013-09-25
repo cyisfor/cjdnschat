@@ -2,6 +2,8 @@ import textwrap
 import shelve,re
 from contextlib import closing,contextmanager
 
+from urllib.parse import urlparse,urlunparse
+
 commands = {}
 alias = {}
 
@@ -75,8 +77,25 @@ def doQuit(chat,args):
     "Quit chatting. Signaling EOF condition (via Ctrl+D) may work also."
     raise SystemExit
 
+def doAccept(chat,args):
+    name = args[0]
+    info = chat.pendingTransfers.get(name)
+    if not info:
+        print("You haven't been requested to accept that!")
+    who,port,uri = info
+    uri = urlparse(uri)
+    uri = urlunparse(('http',who+':{}'.format(port))+uri[2:])
+    chat.getFile(uri,name)
+
+def doGet(chat,args):
+    chat.getFile(args)
+
+commands['accept'] = [doAccept]
+commands['get'] = [doGet]
 commands['quit'] = [doQuit]
 alias['q'] = 'quit'
+alias['a'] = 'accept'
+alias['g'] = 'get'
 
 ralias = {}
 for n,v in alias.items():
