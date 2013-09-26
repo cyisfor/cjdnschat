@@ -26,30 +26,33 @@ function setup(next) {
 function finishedExporting(next) {
     if(!exports.info.port)
         exports.info.port = 0;
-    var ip = fs.createReadStream('/proc/net/if_inet6',{autoClose:true});
-    ip.on('close',function() { gotHost(next); });
-    carrier.carry(ip,function(line) {
-        (function (addr,n1,n2,n3,n4,name) {
-            n1 = parseInt(n1,0x10);
-            n2 = parseInt(n2,0x10);
-            n3 = parseInt(n3,0x10);
-            n4 = parseInt(n4,0x10);
-            if(n1==7 &&
-                n2 == 8 &&
-                n3 == 0 &&
-                n4 == 0x80 &&
-                addr.slice(0,2,0x10)=='fc') {
-                    var components = [];
-                    for(;;) {
-                        components.push(addr.slice(0,4));
-                        addr = addr.slice(4);
-                        if(!addr) break;
+    if(exports.info.host) {
+        gotHost(next);
+    } else {
+        var ip = fs.createReadStream('/proc/net/if_inet6',{autoClose:true});
+        ip.on('close',function() { gotHost(next); });
+        carrier.carry(ip,function(line) {
+            (function (addr,n1,n2,n3,n4,name) {
+                n1 = parseInt(n1,0x10);
+                n2 = parseInt(n2,0x10);
+                n3 = parseInt(n3,0x10);
+                n4 = parseInt(n4,0x10);
+                if( n2 == 8 &&
+                    n3 == 0 &&
+                    n4 == 0x80 &&
+                    addr.slice(0,2,0x10)=='fc') {
+                        var components = [];
+                        for(;;) {
+                            components.push(addr.slice(0,4));
+                            addr = addr.slice(4);
+                            if(!addr) break;
+                        }
+                        addr = components.join(':');
+                        exports.info.host = addr;
                     }
-                    addr = components.join(':');
-                    exports.info.host = addr;
-            }
-        }).apply(this,line.split(/ +/));
-    });
+            }).apply(this,line.split(/ +/));
+        });
+    }
 }
  
 function gotHost(next) {
@@ -58,44 +61,55 @@ function gotHost(next) {
     }
     server = child_process.spawn('rsync',['rsync','--daemon','--no-motd',
             '--address',exports.info.host,'--port',exports.info.port+1]);
-
-    /* PROBABLY don't need persistence on this one... */
-    var buffers = new Object(null);
     d = dgram.createSocket('udp6');
-    d.bind(exports.info.port,exports.info.host,function() {        
-        exports.info.port = d.address().port;
-        d.on('message',function (msg,rinfo) {
-            if(!exports.friends[rinfo.address]) {
-                ui.print('ignoring '+msg.length+' from '+rinfo.address);
-                return;
-            }
-            exports.ports[rinfo.address] = rinfo.port;
-            var buffer = buffers[rinfo];
-            if (!buffer) {
-                buffer = msg;
-            } else {
-                buffer = buffer + msg;
-            }
-            var messages = buffer.toString('utf-8').split('\0');
-            buffers[rinfo] = messages[messages.length-1];
-            messages.slice(messages,messages.length-2).forEach(function (message) {
-                var type = message[0];
-                message = message.slice(1);
-                if(type == 0) {
-                    ui.print('<'+ui.maybeAlias(rinfo.address)+'> '+message);
-                } else {
-                    var url = message;
-                    var name = nameFor(url);
-                    ui.print("Would you like to download "+name+' from '+rinfo.address+'? To do so:');
-                    ui.print("/get "+url);
-                }
-            });
-        });
-        exports.sendMessage = sendMessage;
-        next();
+    // d.bind should return an event listener that emits the error event!
+    function tryAgain(err) {
+        console.log(err);
+        exports.info.host = undefined;
+        if(exports.info.port < 1024) 
+            exports.info.port = 0;
+        finishedExporting(next);
+    }
+    process.once('uncaughtException',tryAgain);
+    d.bind(exports.info.port,exports.info.host,function() {
+        process.removeListener('uncaughtException',tryAgain);
+        gotSocket(d,next);
     });
 }
 
+function gotSocket(d,next) {
+    exports.info.port = d.address().port;
+    d.on('message',function (msg,rinfo) {
+        if(!exports.friends[rinfo.address]) {
+            ui.print('ignoring '+msg.length+' from '+rinfo.address);
+            return;
+        }
+        exports.ports[rinfo.address] = rinfo.port;
+        /* PROBABLY don't need persistence on this one... */
+        var buffer = buffers[rinfo];
+        if (!buffer) {
+            buffer = msg;
+        } else {
+            buffer = buffer + msg;
+        }
+        var messages = buffer.toString('utf-8').split('\0');
+        buffers[rinfo] = messages[messages.length-1];
+        messages.slice(messages,messages.length-2).forEach(function (message) {
+            var type = message[0];
+            message = message.slice(1);
+            if(type == 0) {
+                ui.print('<'+ui.maybeAlias(rinfo.address)+'> '+message);
+            } else {
+                var url = message;
+                var name = nameFor(url);
+                ui.print("Would you like to download "+name+' from '+rinfo.address+'? To do so:');
+                ui.print("/get "+url);
+            }
+        });
+    });
+    exports.sendMessage = sendMessage;
+    next();
+}
 
 function sendMessage(who,message) {
     // XXX: type?
