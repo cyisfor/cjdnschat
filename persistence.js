@@ -11,7 +11,6 @@ function persist(name,next) {
     fs.exists(db,function(exists) {
         if(exists) {
             fs.readFile(db,function(err, data) {
-                console.log('read '+name);
                 if(err) {
                     throw "Not overwriting the JSON just because "+err;
                 } else {

@@ -62,7 +62,6 @@ function gotHost(next) {
     /* PROBABLY don't need persistence on this one... */
     var buffers = new Object(null);
     d = dgram.createSocket('udp6');
-    ui.print('derp '+exports.info.port);
     d.bind(exports.info.port,exports.info.host,function() {        
         exports.info.port = d.address().port;
         d.on('message',function (msg,rinfo) {

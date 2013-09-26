@@ -1,0 +1,11 @@
+{
+  "name": "cjdnschat",
+  "version": "0.0.0",
+  "description": "a chat for cjdns",
+  "main": "chat.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "cy",
+  "license": "wtfpl"
+}

@@ -37,15 +37,15 @@ function monitor() {
         input: process.stdin,
         output: process.stdout,
         completer: function (line) {
-            var derp = mysplit(line," ",1);
-            var lname = derp[0];
+            var stuff = mysplit(line," ",1);
+            var lname = stuff[0];
             var hits = [];
             for(var name in commands) {
                 if (name.indexOf(lname)==0) {
                     if(name == lname) {
                         var command = commands[name];
                         if(command.complete) { 
-                            command.complete(hits,derp[1]);
+                            command.complete(hits,stuff[1]);
                             continue;
                         }
                     }
@@ -62,9 +62,9 @@ function monitor() {
                 if(cmd == '') {
                     commands.help();
                 } else if(cmd[0]=='/') {
-                    var derp = mysplit(cmd," ",1);
-                    cmd = derp[0].slice(1);
-                    var args = derp[1];
+                    var stuff = mysplit(cmd," ",1);
+                    cmd = stuff[0].slice(1);
+                    var args = stuff[1];
                     cmd = commands[cmd];
                     if (cmd == undefined) {
                         print("I don't recognize that command.");
@@ -98,7 +98,16 @@ function command(info,f) {
     return f;
 }
 
-commands.help = command({
+function register(info,f) {
+    commands[info['name']] = command(info,f);
+}
+
+function alias(name,alias) {
+    commands[alias] = commands[name];
+}
+
+register({
+    name: 'help',
     doc: "help on various things."
 },
 function(args) {
@@ -117,9 +126,9 @@ function(args) {
         }
     } else {
         // [subcommand,args] = args.split(" ",2);
-        var derp = mysplit(args," ", 2);
-        var name = derp[0].slice(1);
-        args = derp[1];
+        var stuff = mysplit(args," ", 2);
+        var name = stuff[0].slice(1);
+        args = stuff[1];
         subcommand = shortHelp(name);
         if (subcommand) {
             if(subcommand.fulldoc) {
@@ -131,7 +140,8 @@ function(args) {
     }
 });
 
-commands.quit = command({
+register({
+    name: 'quit',
     doc: "SHUT. DOWN. EVERYTHING.",
     fulldoc: function(args) {
         print("This quit command's full documentation...");
@@ -142,7 +152,8 @@ function(args) {
     globalDone = true;
 });
 
-commands.add = command({
+register({
+    name: 'add',
     doc: "Add a friend to chat with you!",
     fulldoc: function(args) {
         print('syntax: /add ip/port');
@@ -151,18 +162,19 @@ commands.add = command({
         print("each person's host/port is listed at the top of the chat.");
     }},
     function(args) {
-        var derp = args.split('/');
-        if (derp.length != 2) {
+        var stuff = args.split('/');
+        if (stuff.length != 2) {
             this.fulldoc();
             return;
         }
-        host = derp[0];
-        port = derp[1];
+        host = stuff[0];
+        port = stuff[1];
         net.friends[host] = true;
         net.ports[host] = port;
     });
 
-commands.remove = command({
+register({
+    name: 'remove',
     doc: "Remove someone from being able to chat.",
     fulldoc: function(args) {
         print('syntax: /remove host');
@@ -171,29 +183,33 @@ commands.remove = command({
         print("each person's host/port is listed at the top of the chat.");
     }},
 function(args) {
-    var host = args;
+    var host = args.split('/',1);
     delete net.friends[host];
     delete net.ports[host];
 });
 
-commands.send = command({
+alias('remove','ignore');
+
+register({
+    name: 'send',
     doc: "Offer to send someone a file",
     fulldoc: function(args) { 
         print('Syntax: /send <friend> <filename>');
     }},
 function(args) {
-    derp = mysplit(args,' ',1)
-    if(derp.length != 2) {
+    stuff = mysplit(args,' ',1)
+    if(stuff.length != 2) {
         this.fulldoc();
         return;
     }
-    friend = derp[0]
-    filename = derp[1]
+    friend = stuff[0]
+    filename = stuff[1]
     print('Under construction.');
     // now get the basename, copy the file into public, then send them the URL to public/basename
 });
 
-commands.get = command({
+register({
+    name: 'get',
     doc: "Get a file",
     fulldoc: function(args) {
         print('syntax /get <url>');
@@ -202,7 +218,8 @@ function(args) {
     net.download(args);
 });
 
-commands.list = command({
+register({
+    name: 'list',
     doc: "List your friends."
 },
 function(args) {
@@ -215,18 +232,23 @@ function(args) {
     }
 });
 
-commands.alias = command({
+/* XXX: ui.alias is NOT the same as the ui command /alias.
+ * 1st = alias for command names
+ * 2nd = alias for friends
+ *
+ * better name for 1/2 = ? 
+ */
+
+register({
+    name: 'alias',
     doc: "Create an easy to recognize alias for your friend."
 },
 function(args) {
-    var derp = mysplit(args,' ',1);
-    aliases[derp[1].trim()] = derp[0].trim();
+    var stuff = mysplit(args,' ',1);
+    aliases[stuff[1].trim()] = stuff[0].trim();
 });
-
-function register(info,f) {
-    commands[info['name']] = command(info,f);
-}
 
 var print = exports.print = console.log;
 exports.register = register;
+exports.alias = alias;
 exports.monitor = monitor;
