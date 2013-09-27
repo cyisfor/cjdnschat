@@ -1,3 +1,5 @@
+var persist = require('./persistence');
+
 if(typeof(String.prototype.trim) === "undefined")
 {
     String.prototype.trim = function() 
@@ -12,7 +14,7 @@ function mysplit(s,delim,n) {
     var pos = 0;
     while(s.length) {
         var pos = s.indexOf(delim);
-        if(pos==-1 || times > n) {
+        if(pos==-1 || times >= n) {
             results.push(s);
             return results;
         }
@@ -28,67 +30,89 @@ var net = require('./nets');
 var commands = Object(null);
 
 var globalDone = false;
-var aliases = new Object(null);
+var aliases = null;
+var raliases = {};
+
+function maybeAlias(id) {
+    var alias = aliases[id];
+    if (alias)
+        return alias;
+    return id;
+}
+
+function deAlias(alias) {
+    var id = raliases[alias];
+    if(!id)
+        id = alias;
+
+    return id;
+}
 
 function monitor() {
-    readline.createInterface({
-        path: "history.log",
-        maxLength: 0x100,
-        input: process.stdin,
-        output: process.stdout,
-        completer: function (line) {
-            var stuff = mysplit(line," ",1);
-            var lname = stuff[0];
-            var hits = [];
-            for(var name in commands) {
-                if (name.indexOf(lname)==0) {
-                    if(name == lname) {
-                        var command = commands[name];
-                        if(command.complete) { 
-                            command.complete(hits,stuff[1]);
-                            continue;
+    persist('aliases',function(as) {
+        aliases = as;
+        for(var key in aliases) {
+            raliases[aliases[key]] = key;
+        }
+        readline.createInterface({
+            path: "history.log",
+            maxLength: 0x100,
+            input: process.stdin,
+            output: process.stdout,
+            completer: function (line) {
+                var stuff = mysplit(line," ",1);
+                var lname = stuff[0];
+                var hits = [];
+                for(var name in commands) {
+                    if (name.indexOf(lname)==0) {
+                        if(name == lname) {
+                            var command = commands[name];
+                            if(command.complete) { 
+                                command.complete(hits,stuff[1]);
+                                continue;
+                            }
+                        }
+                        hits.push(name);            
+                    }
+                }
+                return [hits,line];
+            },
+            next: function(rl) {
+                rl.setPrompt("> ");
+                rl.prompt();
+                rl.on('line', function (cmd) {
+                    // [cmd,args] = cmd.split(" ",2);
+                    if(cmd == '') {
+                        commands.help();
+                    } else if(cmd[0]=='/') {
+                        var stuff = mysplit(cmd," ",1);
+                        cmd = stuff[0].slice(1);
+                        var args = stuff[1];
+                        cmd = commands[cmd];
+                        if (cmd == undefined) {
+                            print("I don't recognize that command.");
+                            print("Commands:");
+                            commands.help();
+                        } else {
+                            cmd(args);
+                        }
+                    } else {
+                        for(var friend in net.friends) {
+                            net.sendMessage(friend,cmd);
                         }
                     }
-                    hits.push(name);            
-                }
-            }
-            return [hits,line];
-        },
-        next: function(rl) {
-            rl.setPrompt("> ");
-            rl.prompt();
-            rl.on('line', function (cmd) {
-                // [cmd,args] = cmd.split(" ",2);
-                if(cmd == '') {
-                    commands.help();
-                } else if(cmd[0]=='/') {
-                    var stuff = mysplit(cmd," ",1);
-                    cmd = stuff[0].slice(1);
-                    var args = stuff[1];
-                    cmd = commands[cmd];
-                    if (cmd == undefined) {
-                        print("I don't recognize that command.");
-                        print("Commands:");
-                        commands.help();
+                    if(globalDone) {
+                        rl.close();
                     } else {
-                        cmd(args);
+                        rl.prompt();
                     }
-                } else {
-                    for(var friend in net.friends) {
-                        net.sendMessage(friend,cmd);
-                    }
-                }
-                if(globalDone) {
-                    rl.close();
-                } else {
-                    rl.prompt();
-                }
-            }).on('close', function () {
-                print("Shutting down.");
-                process.exit(0);
-            });
+                }).on('close', function () {
+                    print("Shutting down.");
+                    process.exit(0);
+                });
 
-        }
+            }
+        });
     });
 }
 
@@ -161,10 +185,10 @@ register({
         print('port is an integer.');
         print("each person's host/port is listed at the top of the chat.");
     }},
-    function(args) {
+    function add(args) {
         var stuff = args.split('/');
         if (stuff.length != 2) {
-            this.fulldoc();
+            add.fulldoc();
             return;
         }
         host = stuff[0];
@@ -183,8 +207,18 @@ register({
         print("each person's host/port is listed at the top of the chat.");
     }},
 function(args) {
-    var host = args.split('/',1);
+    var name = args;
+    var host = raliases[name];
+    if(!host) {
+        host = name = mysplit(name,'/',1)[0];
+    }
+    print("Removing "+name+" from your buddy list.");
     delete net.friends[host];
+    var alias = aliases[host];
+    if(alias) {
+        delete aliases[host];
+        delete raliases[alias];
+    }
     delete net.ports[host];
 });
 
@@ -245,10 +279,14 @@ register({
 },
 function(args) {
     var stuff = mysplit(args,' ',1);
-    aliases[stuff[1].trim()] = stuff[0].trim();
+    var host = stuff[0].trim();
+    host = mysplit(host,'/')[0];
+    aliases[host] = stuff[1].trim();
 });
 
 var print = exports.print = console.log;
 exports.register = register;
 exports.alias = alias;
 exports.monitor = monitor;
+exports.maybeAlias = maybeAlias
+exports.deAlias = deAlias

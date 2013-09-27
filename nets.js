@@ -23,6 +23,28 @@ function setup(next) {
     });
 }
 
+// http://stackoverflow.com/questions/8920293/split-binary-data-into-array-or-classes-in-node-js
+function splitBuffer(buf, delimiter) {
+  var arr = [], p = 0;
+
+  for (var i = 0, l = buf.length; i < l; i++) {
+    if (buf[i] !== delimiter) continue;
+    if (i === 0) {
+      p = 1;
+      continue; // skip if it's at the start of buffer
+    }
+    arr.push(buf.slice(p, i));
+    p = i + 1;
+  }
+
+  // add final part
+  if (p < l) {
+    arr.push(buf.slice(p, l));
+  }
+
+  return arr;
+}
+
 function finishedExporting(next) {
     if(!exports.info.port)
         exports.info.port = 0;
@@ -77,6 +99,9 @@ function gotHost(next) {
     });
 }
 
+/* PROBABLY don't need persistence on this one... */
+var buffers = {};
+
 function gotSocket(d,next) {
     exports.info.port = d.address().port;
     d.on('message',function (msg,rinfo) {
@@ -85,19 +110,24 @@ function gotSocket(d,next) {
             return;
         }
         exports.ports[rinfo.address] = rinfo.port;
-        /* PROBABLY don't need persistence on this one... */
         var buffer = buffers[rinfo];
         if (!buffer) {
             buffer = msg;
         } else {
-            buffer = buffer + msg;
+            buffer = Buffer.concat([buffer,msg]);
         }
-        var messages = buffer.toString('utf-8').split('\0');
-        buffers[rinfo] = messages[messages.length-1];
-        messages.slice(messages,messages.length-2).forEach(function (message) {
+        var messages = splitBuffer(buffer,0);
+        if (buffer[buffer.length-1]==0) {
+            delete buffers[rinfo];
+            end = messages.length;
+        } else {
+            buffers[rinfo] = messages[messages.length-1];
+            end = messages.length - 1;
+        }
+        messages.slice(0,end).forEach(function (message) {
             var type = message[0];
             message = message.slice(1);
-            if(type == 0) {
+            if(type == 1) {
                 ui.print('<'+ui.maybeAlias(rinfo.address)+'> '+message);
             } else {
                 var url = message;
@@ -117,6 +147,7 @@ function sendMessage(who,message) {
     if(!port)
         port = exports.port;
     message = new Buffer(message);
+    message = Buffer.concat([new Buffer([1]),message,new Buffer([0])],message.length+2);
     d.send(message,0,message.length,port,who);
 }
 
